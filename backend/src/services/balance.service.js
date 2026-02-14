@@ -9,6 +9,7 @@ export const calculateRoomSummary = async (roomId) => {
   members.forEach((m) => {
     summary[m._id] = {
       name: m.name,
+      role: m.role,
       deposited: 0,
       spent: 0,
       balance: 0
@@ -30,7 +31,8 @@ export const calculateRoomSummary = async (roomId) => {
       summary[memberId].balance -= share;
     });
 
-    summary[e.paidBy].balance += e.amount;
+    // In a joint account model, the payer uses the pool's money, so they don't get credited.
+    // summary[e.paidBy].balance += e.amount; 
   });
 
   return summary;

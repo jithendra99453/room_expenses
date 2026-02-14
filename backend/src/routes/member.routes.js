@@ -5,6 +5,8 @@ import { isAdmin } from "../middlewares/isAdmin.js";
 
 const router = express.Router();
 
+
+
 // Add member (admin only)
 router.post(
   "/rooms/:roomId/members",

@@ -1,5 +1,8 @@
 import express from "express";
-import { addExpense, deleteExpense } from "../controllers/expense.controller.js";
+import {
+  addExpense, deleteExpense,
+  editExpense
+} from "../controllers/expense.controller.js";
 import { isRoomMember } from "../middlewares/isRoomMember.js";
 import { isAdmin } from "../middlewares/isAdmin.js";
 
@@ -9,6 +12,13 @@ router.post(
   "/rooms/:roomId/expenses",
   isRoomMember,
   addExpense
+);
+
+router.put(
+  "/expenses/:expenseId",
+  isRoomMember,
+  isAdmin,
+  editExpense
 );
 
 router.delete(

@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import connectDB from "./config/db.js";
+import cors from "cors";
 
 import roomRoutes from "./routes/room.routes.js";
 import memberRoutes from "./routes/member.routes.js";
@@ -13,10 +14,15 @@ connectDB();
 const app = express();
 
 // Middleware
+app.use(cors());
 app.use(express.json());
 
 // Health check
 app.get("/", (req, res) => {
+  res.send("Room Expense API is running");
+});
+
+app.get("/api", (req, res) => {
   res.send("Room Expense API is running");
 });
 
