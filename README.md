@@ -20,7 +20,6 @@ A MERN stack application for managing room expenses.
     ```bash
     cd backend
     npm install
-    cp .env.example .env  # Create .env and add your MONGO_URI
     npm run dev
     ```
 
@@ -62,3 +61,7 @@ npm run build
 cd backend
 npm start
 ```
+
+## Troubleshooting
+
+- **404 Errors on Deep Links:** Ensure `vercel.json` contains rewrites for client-side routing.
