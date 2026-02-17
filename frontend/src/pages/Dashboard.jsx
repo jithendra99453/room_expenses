@@ -258,9 +258,14 @@ const Dashboard = () => {
 
             {/* Recent Expenses */}
             <div className="bg-white rounded-xl shadow-sm p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-                    <TrendingUp className="w-5 h-5 mr-2" /> Recent Expenses
-                </h2>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold text-gray-800 flex items-center">
+                        <TrendingUp className="w-5 h-5 mr-2" /> Recent Expenses
+                    </h2>
+                    <div className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                        Today's Total: <span className="text-gray-800 font-bold">₹{(data.todaysTotal || 0).toFixed(2)}</span>
+                    </div>
+                </div>
                 {expenses.length === 0 ? (
                     <p className="text-gray-500 text-center py-8">No expenses yet.</p>
                 ) : (
@@ -273,7 +278,7 @@ const Dashboard = () => {
                                         Paid by <span className="font-medium text-gray-700">{expense.paidBy?.name || 'Unknown'}</span>
                                     </div>
                                     <div className="text-xs text-gray-400 mt-0.5">
-                                        Split among: {expense.splitAmong?.map(m => m.name).join(', ') || 'All'}
+                                        {new Date(expense.createdAt).toLocaleString()} • Split among: {expense.splitAmong?.map(m => m.name).join(', ') || 'All'}
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">

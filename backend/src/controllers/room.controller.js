@@ -53,11 +53,20 @@ export const getRoomSummary = async (req, res) => {
     const deposits = await Deposit.find({ room: roomId }).populate("member", "name").sort({ date: -1 });
     const summary = await calculateRoomSummary(roomId);
 
+    // Calculate Today's Total
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const todaysTotal = expenses
+      .filter(e => new Date(e.createdAt) >= startOfToday)
+      .reduce((sum, e) => sum + e.amount, 0);
+
     res.json({
       room,
       expenses,
       deposits,
-      summary
+      summary,
+      todaysTotal
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
