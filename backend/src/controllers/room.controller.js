@@ -54,11 +54,29 @@ export const getRoomSummary = async (req, res) => {
     const summary = await calculateRoomSummary(roomId);
 
     // Calculate Today's Total
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    // Calculate Today's Total (IST: UTC+5:30)
+    // We want "Start of Today" in IST.
+    // 1. Get current time in UTC
+    const now = new Date();
+    // 2. Add 5.5 hours to get "IST Time"
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istTime = new Date(now.getTime() + istOffset);
+    // 3. Set to midnight (00:00:00.000)
+    istTime.setUTCHours(0, 0, 0, 0); // treating this Date object as if it were UTC to zero it out
+    // 4. Subtract 5.5 hours to get back to UTC timestamp of "IST Midnight"
+    const startOfTodayIST_UTC = new Date(istTime.getTime() - istOffset);
+
+    console.log("Debug Daily Total:", {
+      serverTime: now.toISOString(),
+      startOfTodayIST: startOfTodayIST_UTC.toISOString()
+    });
 
     const todaysTotal = expenses
-      .filter(e => new Date(e.createdAt) >= startOfToday)
+      .filter(e => {
+        const expenseDate = new Date(e.createdAt);
+        // console.log(`Expense: ${e.amount}, Date: ${expenseDate.toISOString()}, Included? ${expenseDate >= startOfTodayIST_UTC}`);
+        return expenseDate >= startOfTodayIST_UTC;
+      })
       .reduce((sum, e) => sum + e.amount, 0);
 
     res.json({
