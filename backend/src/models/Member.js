@@ -16,6 +16,10 @@ const memberSchema = new mongoose.Schema(
       type: String,
       enum: ["admin", "member"],
       default: "member"
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false
     }
   },
   {

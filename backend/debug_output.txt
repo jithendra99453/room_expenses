@@ -1,0 +1,13 @@
+Connected to DB
+Checking room: room100 (4E2WNP)
+--- Time Debug ---
+Server Time (ISO): 2026-02-18T00:32:30.560Z
+Start of Today IST (UTC): 2026-02-17T18:30:00.000Z
+Found 4 expenses for room room100.
+--- Processing Expenses ---
+[INCLUDED] Amount: 50, CreatedAt: 2026-02-17T23:02:39.474Z
+[INCLUDED] Amount: 10, CreatedAt: 2026-02-17T18:36:23.146Z
+[EXCLUDED] Amount: 200, CreatedAt: 2026-02-17T18:28:37.668Z
+[EXCLUDED] Amount: 50, CreatedAt: 2026-02-17T17:48:04.281Z
+------------------
+Calculated Today's Total: 60

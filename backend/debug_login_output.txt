@@ -1,0 +1,10 @@
+Connected to DB
+--- Investigating Member: 6995066d7015b1876841b5a7 ---
+✅ Member Found: jithendra
+   Linked Room Object ID: 6995066d7015b1876841b5a5
+   Linked Room ID (Public): 2SUWW7
+   Linked Room Name: room101
+
+⚠️ MISMATCH DETECTED
+User tried to login to: 4E2WNP
+But this user belongs to: 2SUWW7

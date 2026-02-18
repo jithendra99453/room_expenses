@@ -61,3 +61,31 @@ export const editExpense = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+export const getRoomExpenses = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    let { page = 1, limit = 10 } = req.query;
+
+    page = parseInt(page);
+    limit = parseInt(limit);
+
+    const expenses = await Expense.find({ room: roomId })
+      .populate("paidBy", "name")
+      .populate("splitAmong", "name")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    const total = await Expense.countDocuments({ room: roomId });
+
+    res.json({
+      expenses,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalExpenses: total
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

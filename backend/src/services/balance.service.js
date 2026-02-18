@@ -10,6 +10,7 @@ export const calculateRoomSummary = async (roomId) => {
     summary[m._id] = {
       name: m.name,
       role: m.role,
+      isDeleted: m.isDeleted,
       deposited: 0,
       spent: 0,
       balance: 0

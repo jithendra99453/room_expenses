@@ -30,10 +30,13 @@ const AddExpense = () => {
                 });
                 // The summary object keys are member IDs. We need an array of {id, name}
                 const summary = res.data.summary;
-                const memberList = Object.keys(summary).map(id => ({
-                    id,
-                    name: summary[id].name
-                }));
+                const memberList = Object.keys(summary)
+                    .map(id => ({
+                        id,
+                        name: summary[id].name,
+                        isDeleted: summary[id].isDeleted
+                    }))
+                    .filter(m => !m.isDeleted);
 
                 setMembers(memberList);
 

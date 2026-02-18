@@ -49,8 +49,19 @@ export const getRoomSummary = async (req, res) => {
   try {
     const { roomId } = req.params;
     const room = await Room.findById(roomId);
-    const expenses = await Expense.find({ room: roomId }).populate("paidBy", "name").populate("splitAmong", "name").sort({ createdAt: -1 });
-    const deposits = await Deposit.find({ room: roomId }).populate("member", "name").sort({ date: -1 });
+
+    // Limit initial load to 5 items for performance
+    const expenses = await Expense.find({ room: roomId })
+      .populate("paidBy", "name")
+      .populate("splitAmong", "name")
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    const deposits = await Deposit.find({ room: roomId })
+      .populate("member", "name")
+      .sort({ createdAt: -1 }) // Assuming sorting by creation time
+      .limit(5);
+
     const summary = await calculateRoomSummary(roomId);
 
     // Calculate Today's Total
@@ -74,10 +85,14 @@ export const getRoomSummary = async (req, res) => {
     const todaysTotal = expenses
       .filter(e => {
         const expenseDate = new Date(e.createdAt);
-        // console.log(`Expense: ${e.amount}, Date: ${expenseDate.toISOString()}, Included? ${expenseDate >= startOfTodayIST_UTC}`);
-        return expenseDate >= startOfTodayIST_UTC;
+        const isIncluded = expenseDate >= startOfTodayIST_UTC;
+        // console.log(`[DEBUG] Expense: ${e.description}, Amount: ${e.amount}, Date: ${expenseDate.toISOString()}, Included: ${isIncluded}`);
+        return isIncluded;
       })
-      .reduce((sum, e) => sum + e.amount, 0);
+      .reduce((sum, e) => {
+        const amount = parseFloat(e.amount) || 0; // Ensure it's a number
+        return sum + amount;
+      }, 0);
 
     res.json({
       room,

@@ -41,8 +41,8 @@ export const deleteMember = async (req, res) => {
       }
     }
 
-    await Member.findByIdAndDelete(memberId);
-    res.json({ message: "Member removed" });
+    await Member.findByIdAndUpdate(memberId, { isDeleted: true });
+    res.json({ message: "Member removed (soft delete)" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
