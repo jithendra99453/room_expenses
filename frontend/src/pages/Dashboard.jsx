@@ -2,7 +2,110 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Plus, Copy, Check, TrendingUp, Users, Pencil, X, Trash2, UserPlus, FileText } from 'lucide-react';
+import { LogOut, Plus, Copy, Check, TrendingUp, Users, Pencil, X, Trash2, UserPlus, FileText, Calendar, CalendarDays, CalendarRange } from 'lucide-react';
+
+// ─── IST date helpers ────────────────────────────────────────────────────────
+const toISTDateKey = (dateStr) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // "YYYY-MM-DD"
+};
+
+// Returns ISO week number (Mon-based) for a "YYYY-MM-DD" key
+const weekKey = (dateKey) => {
+    const d = new Date(dateKey + 'T00:00:00+05:30');
+    const jan4 = new Date(d.getFullYear(), 0, 4);
+    const startOfWeek1 = new Date(jan4);
+    startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+    const weekNum = Math.floor((d - startOfWeek1) / (7 * 86400000)) + 1;
+    return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+};
+
+// "YYYY-MM" key
+const monthKey = (dateKey) => dateKey.slice(0, 7);
+
+// Format display labels
+const formatDay = (dateKey) => {
+    const d = new Date(dateKey + 'T00:00:00+05:30');
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+};
+const formatWeek = (wk) => {
+    // wk = "YYYY-WNN"
+    const [year, w] = wk.split('-W');
+    const jan4 = new Date(Number(year), 0, 4);
+    const startOfWeek1 = new Date(jan4);
+    startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+    const start = new Date(startOfWeek1);
+    start.setDate(start.getDate() + (Number(w) - 1) * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    const fmt = (d) => d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
+    return `${fmt(start)} – ${fmt(end)}`;
+};
+const formatMonth = (mk) => {
+    const [year, month] = mk.split('-');
+    const d = new Date(Number(year), Number(month) - 1, 1);
+    return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+};
+
+/**
+ * Takes the flat expenses list (newest first) and the dailyTotals map,
+ * and builds a flat render list with interleaved day / week / month total rows.
+ */
+const buildRenderList = (expenses, dailyTotalsMap) => {
+    if (!expenses || expenses.length === 0) return [];
+
+    const items = [];
+    let prevDay = null, prevWeek = null, prevMonth = null;
+
+    for (let i = 0; i < expenses.length; i++) {
+        const exp = expenses[i];
+        const dk = toISTDateKey(exp.createdAt);
+        const wk = weekKey(dk);
+        const mk = monthKey(dk);
+
+        // Flush day/week/month totals when the group changes (we're going newest→oldest)
+        if (prevDay !== null && dk !== prevDay) {
+            // End of a day — insert day total
+            items.push({ type: 'dayTotal', dateKey: prevDay, total: dailyTotalsMap[prevDay] || 0 });
+
+            if (wk !== prevWeek) {
+                // Also end of a week — insert week total (sum of daily totals in that week)
+                const weekTotal = Object.entries(dailyTotalsMap)
+                    .filter(([d]) => weekKey(d) === prevWeek)
+                    .reduce((s, [, t]) => s + t, 0);
+                items.push({ type: 'weekTotal', weekKey: prevWeek, total: weekTotal });
+            }
+
+            if (mk !== prevMonth) {
+                // Also end of a month — insert month total
+                const monthTotal = Object.entries(dailyTotalsMap)
+                    .filter(([d]) => monthKey(d) === prevMonth)
+                    .reduce((s, [, t]) => s + t, 0);
+                items.push({ type: 'monthTotal', monthKey: prevMonth, total: monthTotal });
+            }
+        }
+
+        items.push({ type: 'expense', data: exp });
+        prevDay = dk;
+        prevWeek = wk;
+        prevMonth = mk;
+    }
+
+    // Flush the final group
+    if (prevDay) {
+        items.push({ type: 'dayTotal', dateKey: prevDay, total: dailyTotalsMap[prevDay] || 0 });
+        const weekTotal = Object.entries(dailyTotalsMap)
+            .filter(([d]) => weekKey(d) === prevWeek)
+            .reduce((s, [, t]) => s + t, 0);
+        items.push({ type: 'weekTotal', weekKey: prevWeek, total: weekTotal });
+        const monthTotal = Object.entries(dailyTotalsMap)
+            .filter(([d]) => monthKey(d) === prevMonth)
+            .reduce((s, [, t]) => s + t, 0);
+        items.push({ type: 'monthTotal', monthKey: prevMonth, total: monthTotal });
+    }
+
+    return items;
+};
 
 const Dashboard = () => {
     const { user, room: authRoom, logout } = useAuth();
@@ -124,7 +227,10 @@ const Dashboard = () => {
     if (loading) return <div className="flex bg-gray-100 h-screen items-center justify-center">Loading...</div>;
     if (!roomData) return <div className="flex bg-gray-100 h-screen items-center justify-center">Failed to load data</div>;
 
-    const { room, summary } = roomData;
+    const { room, summary, dailyTotals } = roomData;
+    // Build dailyTotalsMap: { "YYYY-MM-DD": total }
+    const dailyTotalsMap = {};
+    (dailyTotals || []).forEach(dt => { dailyTotalsMap[dt.date] = dt.total; });
     const myDeposits = depositsList.filter(d => d.member?._id === memberId) || [];
 
     // Calculate Available Money
@@ -313,40 +419,76 @@ const Dashboard = () => {
                     <h2 className="text-xl font-bold text-gray-800 flex items-center">
                         <TrendingUp className="w-5 h-5 mr-2" /> Recent Expenses
                     </h2>
-                    <div className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                        Today's Total: <span className="text-gray-800 font-bold">₹{(roomData.todaysTotal || 0).toFixed(2)}</span>
-                    </div>
                 </div>
                 {expensesList.length === 0 ? (
                     <p className="text-gray-500 text-center py-8">No expenses yet.</p>
                 ) : (
-                    <div className="space-y-4">
-                        {expensesList.map(expense => (
-                            <div key={expense._id} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg transition border-b border-gray-100 last:border-0">
-                                <div>
-                                    <div className="font-medium text-gray-800">{expense.description}</div>
-                                    <div className="text-sm text-gray-500">
-                                        Paid by <span className="font-medium text-gray-700">{expense.paidBy?.name || 'Unknown'}</span>
+                    <div className="space-y-2">
+                        {buildRenderList(expensesList, dailyTotalsMap).map((item, idx) => {
+                            if (item.type === 'expense') {
+                                const expense = item.data;
+                                return (
+                                    <div key={expense._id} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg transition border-b border-gray-100 last:border-0">
+                                        <div>
+                                            <div className="font-medium text-gray-800">{expense.description}</div>
+                                            <div className="text-sm text-gray-500">
+                                                Paid by <span className="font-medium text-gray-700">{expense.paidBy?.name || 'Unknown'}</span>
+                                            </div>
+                                            <div className="text-xs text-gray-400 mt-0.5">
+                                                {new Date(expense.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} • Split among: {expense.splitAmong?.map(m => m.name).join(', ') || 'All'}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="font-bold text-gray-800">
+                                                ₹{expense.amount.toFixed(2)}
+                                            </div>
+                                            {user?.role === 'admin' && (
+                                                <button
+                                                    onClick={() => setEditingExpense(expense)}
+                                                    className="p-1 text-gray-400 hover:text-blue-500 transition"
+                                                >
+                                                    <Pencil className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="text-xs text-gray-400 mt-0.5">
-                                        {new Date(expense.createdAt).toLocaleString()} • Split among: {expense.splitAmong?.map(m => m.name).join(', ') || 'All'}
+                                );
+                            }
+                            if (item.type === 'dayTotal') {
+                                return (
+                                    <div key={`day-${item.dateKey}-${idx}`} className="flex items-center justify-between px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg">
+                                        <div className="flex items-center gap-2 text-blue-700 text-sm font-semibold">
+                                            <CalendarDays className="w-4 h-4" />
+                                            {formatDay(item.dateKey)}
+                                        </div>
+                                        <div className="text-blue-800 font-bold text-sm">₹{item.total.toFixed(2)}</div>
                                     </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <div className="font-bold text-gray-800">
-                                        ₹{expense.amount.toFixed(2)}
+                                );
+                            }
+                            if (item.type === 'weekTotal') {
+                                return (
+                                    <div key={`week-${item.weekKey}-${idx}`} className="flex items-center justify-between px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg">
+                                        <div className="flex items-center gap-2 text-indigo-700 text-sm font-semibold">
+                                            <CalendarRange className="w-4 h-4" />
+                                            Week: {formatWeek(item.weekKey)}
+                                        </div>
+                                        <div className="text-indigo-800 font-bold text-sm">₹{item.total.toFixed(2)}</div>
                                     </div>
-                                    {user?.role === 'admin' && (
-                                        <button
-                                            onClick={() => setEditingExpense(expense)}
-                                            className="p-1 text-gray-400 hover:text-blue-500 transition"
-                                        >
-                                            <Pencil className="w-4 h-4" />
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
+                                );
+                            }
+                            if (item.type === 'monthTotal') {
+                                return (
+                                    <div key={`month-${item.monthKey}-${idx}`} className="flex items-center justify-between px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
+                                        <div className="flex items-center gap-2 text-purple-700 font-semibold">
+                                            <Calendar className="w-5 h-5" />
+                                            {formatMonth(item.monthKey)}
+                                        </div>
+                                        <div className="text-purple-800 font-bold">₹{item.total.toFixed(2)}</div>
+                                    </div>
+                                );
+                            }
+                            return null;
+                        })}
                     </div>
                 )}
                 {hasMoreExpenses && (
@@ -606,29 +748,29 @@ const Dashboard = () => {
             }
 
             {/* Floating Action Buttons */}
-            <div className="fixed bottom-6 right-6 flex flex-col gap-3">
+            <div className="fixed bottom-6 right-6 flex flex-col gap-3 items-end">
                 {user?.role === 'admin' && (
                     <button
                         onClick={() => setShowAddMemberModal(true)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-4 shadow-lg transition transform hover:scale-105"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-5 py-3 shadow-lg transition transform hover:scale-105 flex items-center gap-2 font-medium"
                         title="Add Member"
                     >
-                        <UserPlus className="w-6 h-6" />
+                        <UserPlus className="w-5 h-5" /> Add Member
                     </button>
                 )}
                 <button
                     onClick={() => setShowDepositModal(true)}
-                    className="bg-green-600 hover:bg-green-700 text-white rounded-full p-4 shadow-lg transition transform hover:scale-105"
-                    title="Deposit Money"
+                    className="bg-green-600 hover:bg-green-700 text-white rounded-full px-5 py-3 shadow-lg transition transform hover:scale-105 flex items-center gap-2 font-medium"
+                    title="Add Deposit"
                 >
-                    <Check className="w-6 h-6" />
+                    <Check className="w-5 h-5" /> Add Deposit
                 </button>
                 <button
                     onClick={() => navigate('/add-expense')}
-                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition transform hover:scale-105"
+                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-full px-5 py-3 shadow-lg transition transform hover:scale-105 flex items-center gap-2 font-medium"
                     title="Add Expense"
                 >
-                    <Plus className="w-6 h-6" />
+                    <Plus className="w-5 h-5" /> Add Expense
                 </button>
             </div>
         </div >

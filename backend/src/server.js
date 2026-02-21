@@ -17,14 +17,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Health check
-app.get("/", (req, res) => {
-  res.send("Room Expense API is running");
-});
-
-app.get("/api", (req, res) => {
-  res.send("Room Expense API is running");
-});
 
 // Routes
 app.use("/api/rooms", roomRoutes);

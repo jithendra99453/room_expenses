@@ -1,5 +1,6 @@
 import Expense from "../models/Expense.js";
 import Member from "../models/Member.js";
+import DailyTotal from "../models/DailyTotal.js";
 
 export const addExpense = async (req, res) => {
   try {
@@ -23,11 +24,20 @@ export const addExpense = async (req, res) => {
       splitAmong
     });
 
+    // Upsert today's daily total (IST date key: "YYYY-MM-DD")
+    const dateKey = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    await DailyTotal.findOneAndUpdate(
+      { room: roomId, date: dateKey },
+      { $inc: { total: amount } },
+      { upsert: true }
+    );
+
     res.status(201).json(expense);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 export const deleteExpense = async (req, res) => {
   try {

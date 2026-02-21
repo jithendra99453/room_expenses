@@ -14,6 +14,13 @@ router.post(
   addExpense
 );
 
+router.put(
+  "/expenses/:expenseId",
+  isRoomMember,
+  isAdmin,
+  editExpense
+);
+
 router.delete(
   "/expenses/:expenseId",
   isRoomMember,

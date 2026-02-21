@@ -3,6 +3,7 @@ import Room from "../models/Room.js";
 import Member from "../models/Member.js";
 import Expense from "../models/Expense.js";
 import Deposit from "../models/Deposit.js";
+import DailyTotal from "../models/DailyTotal.js";
 import { calculateRoomSummary } from "../services/balance.service.js";
 
 export const createRoom = async (req, res) => {
@@ -45,6 +46,54 @@ export const createRoom = async (req, res) => {
   }
 };
 
+export const loginMember = async (req, res) => {
+  try {
+    const { roomId, accessKey } = req.body;
+
+    if (!roomId || !accessKey) {
+      return res.status(400).json({ message: "Room ID and Access Key are required" });
+    }
+
+    // 1. Find the room by the short code (e.g. "T60LPM")
+    const room = await Room.findOne({ roomId: roomId.toUpperCase().trim() });
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    // 2. Find the member by their _id (the Access Key) AND they must belong to this room
+    let member;
+    try {
+      member = await Member.findOne({
+        _id: new mongoose.Types.ObjectId(accessKey.trim()),
+        room: room._id,
+        isDeleted: { $ne: true }
+      });
+    } catch {
+      return res.status(400).json({ message: "Invalid Access Key format" });
+    }
+
+    if (!member) {
+      return res.status(403).json({ message: "Invalid Room ID or Access Key" });
+    }
+
+    // 3. Return member + room data (no role restriction — admins and members both log in here)
+    res.json({
+      member: {
+        _id: member._id,
+        name: member.name,
+        role: member.role
+      },
+      room: {
+        _id: room._id,
+        roomId: room.roomId,
+        name: room.name
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 export const getRoomSummary = async (req, res) => {
   try {
     const { roomId } = req.params;
@@ -59,47 +108,39 @@ export const getRoomSummary = async (req, res) => {
 
     const deposits = await Deposit.find({ room: roomId })
       .populate("member", "name")
-      .sort({ createdAt: -1 }) // Assuming sorting by creation time
+      .sort({ createdAt: -1 })
       .limit(5);
 
     const summary = await calculateRoomSummary(roomId);
 
-    // Calculate Today's Total
-    // Calculate Today's Total (IST: UTC+5:30)
-    // We want "Start of Today" in IST.
-    // 1. Get current time in UTC
-    const now = new Date();
-    // 2. Add 5.5 hours to get "IST Time"
-    const istOffset = 5.5 * 60 * 60 * 1000;
-    const istTime = new Date(now.getTime() + istOffset);
-    // 3. Set to midnight (00:00:00.000)
-    istTime.setUTCHours(0, 0, 0, 0); // treating this Date object as if it were UTC to zero it out
-    // 4. Subtract 5.5 hours to get back to UTC timestamp of "IST Midnight"
-    const startOfTodayIST_UTC = new Date(istTime.getTime() - istOffset);
+    // Compute daily totals from ALL expenses (always accurate, IST timezone)
+    // Groups by "YYYY-MM-DD" in IST (UTC+5:30 = +330 minutes)
+    const dailyAgg = await Expense.aggregate([
+      { $match: { room: new mongoose.Types.ObjectId(roomId) } },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: "$createdAt",
+              timezone: "Asia/Kolkata"
+            }
+          },
+          total: { $sum: "$amount" }
+        }
+      },
+      { $sort: { _id: -1 } }
+    ]);
 
-    console.log("Debug Daily Total:", {
-      serverTime: now.toISOString(),
-      startOfTodayIST: startOfTodayIST_UTC.toISOString()
-    });
-
-    const todaysTotal = expenses
-      .filter(e => {
-        const expenseDate = new Date(e.createdAt);
-        const isIncluded = expenseDate >= startOfTodayIST_UTC;
-        // console.log(`[DEBUG] Expense: ${e.description}, Amount: ${e.amount}, Date: ${expenseDate.toISOString()}, Included: ${isIncluded}`);
-        return isIncluded;
-      })
-      .reduce((sum, e) => {
-        const amount = parseFloat(e.amount) || 0; // Ensure it's a number
-        return sum + amount;
-      }, 0);
+    // Shape: [{ date: "YYYY-MM-DD", total: number }]
+    const dailyTotals = dailyAgg.map(d => ({ date: d._id, total: d.total }));
 
     res.json({
       room,
       expenses,
       deposits,
       summary,
-      todaysTotal
+      dailyTotals
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

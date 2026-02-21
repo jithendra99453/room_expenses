@@ -24,35 +24,12 @@ const JoinRoom = () => {
         setLoading(true);
 
         try {
-            // Verify credentials by attempting to fetch room summary
-            // This endpoint requires a valid x-member-id header
-            const accessKey = formData.accessKey.trim();
-            const roomId = formData.roomId.toUpperCase().trim();
-
-            const res = await client.get(`/rooms/${roomId}/summary`, {
-                headers: { 'x-member-id': accessKey }
+            const res = await client.post('/rooms/login', {
+                roomId: formData.roomId.trim(),
+                accessKey: formData.accessKey.trim()
             });
 
-            // If successful, we need to find the member's name from the summary
-            // summary is { memberId: { name, balance, ... } }
-            const summary = res.data.summary;
-            const memberData = summary[accessKey];
-
-            if (!memberData) {
-                // This might happen if the ID is valid but not for this room, 
-                // though the backend middleware checks room membership, so 403 would be thrown usually.
-                throw new Error('Member not found in this room');
-            }
-
-            // Login with returned member and room data
-            // We reconstruct the member object since we only have partial data
-            const member = {
-                _id: accessKey,
-                name: memberData.name,
-                role: memberData.role // Use actual role from backend
-            };
-
-            login(member, res.data.room);
+            login(res.data.member, res.data.room);
             navigate('/dashboard');
         } catch (err) {
             console.error(err);
